@@ -23,16 +23,27 @@ Configuration — container names, the proxy port, host UID/GID, and bind-mount 
 ## Usage
 
 ```sh
-# build and start both containers, launches `claude` in the sandbox
-podman compose up --build
+# build and start both containers, launches `claude` in the sandbox in the foreground with immediately killing the pod on leave
+podman compose run --rm claude
 
-# subsequent runs, no rebuild needed
-podman compose up
+# build and start both containers, launches `claude` in the sandbox in the background
+podman compose up --build -d
 
-# get a shell in the sandbox instead of launching Claude directly
-podman compose run claude bash
+# attach to the running Claude session (the main process, `claude`, with its TTY)
+podman attach ${CLAUDE_CONTAINER_NAME}
+# detach WITHOUT stopping it: Ctrl-p, Ctrl-q
 
-# tear down
+# open an additional shell in the running container (separate process)
+podman exec -it ${CLAUDE_CONTAINER_NAME} bash
+
+# same thing via compose, using the service name
+podman compose exec claude bash
+
+# watch logs / check state
+podman compose logs -f claude
+podman compose ps
+
+# tear down (at least squid will survive even if stack was started with --rm)
 podman compose down
 ```
 
@@ -47,14 +58,14 @@ After starting the stack, confirm from inside the `claude` container that:
 
 ## Files
 
-| File | Purpose |
-| --- | --- |
-| `compose-claude.yaml` | Defines the `claude` and `proxy` services and the `isolated`/`egress` networks |
-| `Dockerfile.claude` | Builds the sandbox image Claude Code runs in |
-| `Dockerfile.proxy` | Builds the Squid proxy image |
-| `entrypoint.sh` | Seeds `$HOME` from `/etc/skel` without clobbering existing files, then execs the container command |
-| `squid-claude.conf` | Proxy allowlist — only `.claude.ai`, `.claude.com`, `.anthropic.com` over HTTPS |
-| `env.claude-sample` | a sample file for `.env` defining Container names, proxy port, host UID/GID, bind-mount paths |
+| File                  | Purpose                                                                                            |
+| :-------------------- | :------------------------------------------------------------------------------------------------- |
+| `compose-claude.yaml` | Defines the `claude` and `proxy` services and the `isolated`/`egress` networks                     |
+| `Dockerfile.claude`   | Builds the sandbox image Claude Code runs in                                                       |
+| `Dockerfile.proxy`    | Builds the Squid proxy image                                                                       |
+| `entrypoint.sh`       | Seeds `$HOME` from `/etc/skel` without clobbering existing files, then execs the container command |
+| `squid-claude.conf`   | Proxy allowlist — only `.claude.ai`, `.claude.com`, `.anthropic.com` over HTTPS                    |
+| `env.claude-sample`   | a sample file for `.env` defining Container names, proxy port, host UID/GID, bind-mount paths      |
 
 ## Notes
 
