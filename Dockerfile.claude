@@ -1,0 +1,22 @@
+# Dockerfile.claude
+FROM docker.io/library/alpine:3.20
+RUN apk add --no-cache nodejs npm git bash ripgrep libgcc libstdc++ \
+ && npm install -g @anthropic-ai/claude-code \
+ && adduser -D -u 1000 -s /bin/bash claude \
+ && mkdir -p /work \
+ && chown claude:claude /work
+
+# Skeleton files copied into an empty $HOME at startup
+RUN mkdir -p /etc/skel \
+ && printf 'export PATH="$HOME/.local/bin:$PATH"\nalias ll="ls -la"\n' > /etc/skel/.bashrc \
+ && printf '[ -f ~/.bashrc ] && . ~/.bashrc\n' > /etc/skel/.bash_profile \
+ && mkdir -p /etc/skel/.claude
+
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+ENV HOME=/home/claude
+USER claude
+WORKDIR /work
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["claude"]

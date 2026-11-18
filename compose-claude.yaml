@@ -1,0 +1,46 @@
+x-podman:
+  in_pod: false
+
+services:
+  claude:
+    container_name: ${CLAUDE_CONTAINER_NAME}
+    build:
+      context: .
+      dockerfile: Dockerfile.claude
+    userns_mode: "keep-id:uid=${HOST_UID},gid=${HOST_GID}"
+    environment:
+      HTTPS_PROXY: http://proxy:${PROXY_PORT}
+      HTTP_PROXY: http://proxy:${PROXY_PORT}
+      USE_BUILTIN_RIPGREP: "0"
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
+    volumes:
+      - ${WORK_DIR}:/work:Z
+      - ${CLAUDE_HOME_DIR}:/home/claude:Z
+    networks:
+      - isolated
+    depends_on:
+      - proxy
+    stdin_open: true
+    tty: true
+    command: claude
+
+  proxy:
+    container_name: ${PROXY_CONTAINER_NAME}
+    build:
+      context: .
+      dockerfile: Dockerfile.proxy
+    volumes:
+      - ./squid-claude.conf:/etc/squid/squid.conf:ro,Z
+    # Only "claude" shares the "isolated" network with this service, and
+    # "isolated" has no route to the host or outside world, so ${PROXY_PORT}
+    # is reachable solely from the claude container by construction.
+    expose:
+      - "${PROXY_PORT}"
+    networks:
+      - isolated
+      - egress
+
+networks:
+  isolated:
+    internal: true
+  egress: {}
