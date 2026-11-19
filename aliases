@@ -1,0 +1,2 @@
+alias run-claude='  podman-compose -p claude   --env-file env.claude   -f compose-claude.yaml   run --rm claude'
+alias run-opencode='podman-compose -p opencode --env-file env.opencode -f compose-opencode.yaml run --rm opencode'
