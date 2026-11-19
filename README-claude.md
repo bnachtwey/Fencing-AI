@@ -25,10 +25,10 @@ Configuration — container names, the proxy port, host UID/GID, and bind-mount 
 
 ```sh
 # build and start both containers, launches `claude` in the sandbox in the foreground with immediately killing the pod on leave
-podman-compose -f compose-claude.yaml run --rm claude
+podman-compose -p claude --env-file env.claude -f compose-claude.yaml run --rm claude
 
 # build and start both containers, launches `claude` in the sandbox in the background
-podman-compose -f compose-claude.yaml up --build -d
+podman-compose -p claude --env-file env.claude -f compose-claude.yaml up --build -d
 
 # attach to the running Claude session (the main process, `claude`, with its TTY)
 podman attach ${CLAUDE_CONTAINER_NAME}
@@ -38,14 +38,14 @@ podman attach ${CLAUDE_CONTAINER_NAME}
 podman exec -it ${CLAUDE_CONTAINER_NAME} bash
 
 # same thing via compose, using the service name
-podman-compose -f compose-claude.yaml exec claude bash
+podman-compose -p claude --env-file env.claude -f compose-claude.yaml exec claude bash
 
 # watch logs / check state
-podman-compose -f compose-claude.yaml logs -f claude
-podman-compose -f compose-claude.yaml ps
+podman-compose -p claude --env-file env.claude -f compose-claude.yaml logs -f claude
+podman-compose -p claude --env-file env.claude -f compose-claude.yaml ps
 
 # tear down (at least squid will survive even if stack was started with --rm)
-podman-compose -f compose-claude.yaml down
+podman-compose -p claude --env-file env.claude -f compose-claude.yaml down
 ```
 
 `WORK_DIR` and `CLAUDE_HOME_DIR` (set in `.env`, default `./work` and `./claude-home`) are created on the host and bind-mounted in. Point `WORK_DIR` at the project you want Claude to work on.
