@@ -1,6 +1,6 @@
 # Claude Code Sandbox
 
-A Podman Compose setup that runs [Claude Code](https://claude.ai/code) inside a network-isolated sandbox, so the agent can only reach Anthropic's own domains and nothing else on the network and internet.
+A podman-compose setup that runs [Claude Code](https://claude.ai/code) inside a network-isolated sandbox, so the agent can only reach Anthropic's own domains and nothing else on the network and internet.
 Ba adopting the `squid.conf` additional access is posible.
 
 ## Why
@@ -25,10 +25,10 @@ Configuration — container names, the proxy port, host UID/GID, and bind-mount 
 
 ```sh
 # build and start both containers, launches `claude` in the sandbox in the foreground with immediately killing the pod on leave
-podman compose -f compose-claude.yaml run --rm claude
+podman-compose -f compose-claude.yaml run --rm claude
 
 # build and start both containers, launches `claude` in the sandbox in the background
-podman compose -f compose-claude.yaml up --build -d
+podman-compose -f compose-claude.yaml up --build -d
 
 # attach to the running Claude session (the main process, `claude`, with its TTY)
 podman attach ${CLAUDE_CONTAINER_NAME}
@@ -38,14 +38,14 @@ podman attach ${CLAUDE_CONTAINER_NAME}
 podman exec -it ${CLAUDE_CONTAINER_NAME} bash
 
 # same thing via compose, using the service name
-podman compose -f compose-claude.yaml exec claude bash
+podman-compose -f compose-claude.yaml exec claude bash
 
 # watch logs / check state
-podman compose -f compose-claude.yaml logs -f claude
-podman compose -f compose-claude.yaml ps
+podman-compose -f compose-claude.yaml logs -f claude
+podman-compose -f compose-claude.yaml ps
 
 # tear down (at least squid will survive even if stack was started with --rm)
-podman compose -f compose-claude.yaml down
+podman-compose -f compose-claude.yaml down
 ```
 
 `WORK_DIR` and `CLAUDE_HOME_DIR` (set in `.env`, default `./work` and `./claude-home`) are created on the host and bind-mounted in. Point `WORK_DIR` at the project you want Claude to work on.
