@@ -4,13 +4,13 @@ FROM docker.io/library/alpine:3.20
 # add some basic packages
 RUN apk add --no-cache nodejs npm git bash ripgrep libgcc libstdc++ \
  && npm install -g @anthropic-ai/claude-code \
- && adduser -D -u 1000 -s /bin/bash claude \
+ && adduser -D -u 59999 -s /bin/bash claude \
  && mkdir -p /work \
  && chown claude:claude /work
 
 # add ponytail plugin
 RUN git clone --depth 1 https://github.com/DietrichGebert/ponytail /opt/ponytail \
- && chmod -R a+rX,go-w /opt/ponytail
+ && chmod -R a+rx,go-w /opt/ponytail
 
  # Skeleton files copied into an empty $HOME at startup
 RUN mkdir -p /etc/skel \
@@ -19,7 +19,7 @@ RUN mkdir -p /etc/skel \
  && mkdir -p /etc/skel/.claude
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+RUN chmod a+rx,go-w /usr/local/bin/entrypoint.sh
 
 ENV HOME=/home/claude
 USER claude
