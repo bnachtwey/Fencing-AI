@@ -1,3 +1,7 @@
-work/
-claude-home/
+#
 **/claude.json
+
+# pod's work and home folders
+claude-home/
+opencode-home/
+work/

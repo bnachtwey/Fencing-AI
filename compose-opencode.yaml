@@ -1,0 +1,52 @@
+x-podman:
+  in_pod: false
+
+services:
+  opencode:
+    container_name: ${OPENCODE_CONTAINER_NAME}
+    build:
+      context: .
+      dockerfile: Dockerfile.opencode
+      args:
+        HOST_UID: ${HOST_UID}
+        HOST_GID: ${HOST_GID}
+    userns_mode: "keep-id:uid=${HOST_UID},gid=${HOST_GID}"
+    environment:
+      HTTPS_PROXY: http://proxy:${PROXY_PORT}
+      HTTP_PROXY: http://proxy:${PROXY_PORT}
+      https_proxy: http://proxy:${PROXY_PORT}
+      http_proxy: http://proxy:${PROXY_PORT}
+      NO_PROXY: localhost,127.0.0.1,::1
+      OPENCODE_DISABLE_AUTOUPDATE: "true"
+      OPENCODE_DISABLE_LSP_DOWNLOAD: "true"
+    volumes:
+      - ${WORK_DIR}:/work:Z
+      - ${OPENCODE_HOME_DIR}:/home/opencode:Z
+    networks:
+      - isolated
+    depends_on:
+      - proxy
+    stdin_open: true
+    tty: true
+    command: opencode
+
+  proxy:
+    container_name: ${PROXY_CONTAINER_NAME}
+    build:
+      context: .
+      dockerfile: Dockerfile.proxy
+    volumes:
+      - ./squid-opencode.conf:/etc/squid/squid.conf:ro,Z
+    # Only "opencode" shares the "isolated" network with this service, and
+    # "isolated" has no route to the host or outside world, so ${PROXY_PORT}
+    # is reachable solely from the opencode container by construction.
+    expose:
+      - "${PROXY_PORT}"
+    networks:
+      - isolated
+      - egress
+
+networks:
+  isolated:
+    internal: true
+  egress: {}
