@@ -66,7 +66,7 @@ After starting the stack, confirm from inside the `claude` container that:
 | `Dockerfile.proxy`      | Builds the Squid proxy image                                                                       |
 | `entrypoint-claude..sh` | Seeds `$HOME` from `/etc/skel` without clobbering existing files, then execs the container command |
 | `squid-claude.conf`     | Proxy allowlist — only `.claude.ai`, `.claude.com`, `.anthropic.com` over HTTPS                    |
-| `env.claude-sample`     | a sample file for `.env` defining Container names, proxy port, host UID/GID, bind-mount paths      |
+| `env.claude`            | a sample file for `.env` defining Container names, proxy port, host UID/GID, bind-mount paths      |
 
 ## Notes
 
