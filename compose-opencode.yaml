@@ -35,6 +35,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.proxy
+      args:
+        SQUID_UID: ${SQUID_UID}
+        SQUID_GID: ${SQUID_GID}
+    # Map the host user onto the container's squid user, so files Squid
+    # writes to the bind-mounted log dir are owned by you on the host.
+    userns_mode: "keep-id:uid=${SQUID_UID},gid=${SQUID_GID}"
+    user: "${SQUID_UID}:${SQUID_GID}"
     environment:
       SQUIDLOG: ${SQUIDLOG}
     volumes:
