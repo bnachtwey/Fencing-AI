@@ -12,14 +12,14 @@ OpenCode can run arbitrary shell commands on your behalf. This setup fences its 
 Two services, two Podman networks, defined in `compose-opencode.yaml`:
 
 - **`opencode`** (`Dockerfile.opencode`) — Alpine with Node, npm, git, ripgrep, and `opencode-ai` installed globally. Runs as a non-root `opencode` user (uid/gid from `HOST_UID`/`HOST_GID`, mapped via `userns_mode: keep-id`). Its entrypoint (`entrypoint-opencode.sh`) seeds `$HOME` from `/etc/skel` (a starter `.bashrc`, `.bash_profile`, and empty `.config/opencode` dir) without overwriting anything already there, then execs the real command (`opencode` by default).
-- **`proxy`** (`Dockerfile.proxy`) — Alpine with Squid, configured by `squid-opencode.conf` to allow CONNECT only to the allowed domains and deny everything else. Every request, allowed or denied, is logged to the container's stdout.
+- **`proxy`** (`Dockerfile.proxy`) — Alpine with Squid, configured by `squid-opencode.conf` to allow CONNECT only to the allowed domains and deny everything else. Every request, allowed or denied, is logged to `${SQUIDLOG}/access.log` (errors/debug to `${SQUIDLOG}/cache.log`), bind-mounted to `${SQUIDLOG_HOST}` on the host.
 - **`isolated` network** — internal-only, no route to the host or the internet. Connects `opencode` and `proxy`. This is the only network the `opencode` container is on.
 - **`egress` network** — connects only `proxy` to the outside world. This is the sole path any traffic from `opencode` can take to leave the sandbox, and only through Squid's allowlist.
 - **Volumes**:
   - `${WORK_DIR}` (host) → `/work` in the `opencode` container — the working directory OpenCode operates in.
   - `${OPENCODE_HOME_DIR}` (host) → `/home/opencode` — persists OpenCode's home directory (config in `~/.config/opencode`, credentials and sessions in `~/.local/share/opencode`, plus state and cache) across container restarts.
 
-Configuration — container names, the proxy port, host UID/GID, and bind-mount paths — lives in `env.opencode` and is passed to compose with `--env-file`.
+Configuration — container names, the proxy port, host UID/GID, bind-mount paths, and the Squid log directory — lives in `env.opencode` and is passed to compose with `--env-file`.
 
 The compose project is always started with `-p opencode` so that it doesn't collide with the Claude stack (which also has a `proxy` service and `isolated`/`egress` networks) when both live in the same directory.
 
@@ -33,6 +33,8 @@ Set in `compose-opencode.yaml`:
 | `NO_PROXY=localhost,127.0.0.1,::1`                          | Keeps OpenCode's own local TUI/server traffic off the proxy (Squid would deny it).              |
 | `OPENCODE_DISABLE_AUTOUPDATE=true`                          | No self-update attempts (they would be blocked anyway).                                         |
 | `OPENCODE_DISABLE_LSP_DOWNLOAD=true`                        | No automatic LSP server downloads (blocked anyway).                                             |
+| `SQUIDLOG`                                                  | Directory inside the proxy container where Squid writes `access.log` and `cache.log` (default `/squidlog`). |
+| `SQUIDLOG_HOST`                                             | Host directory bind-mounted onto `${SQUIDLOG}` so proxy logs are readable on the host (default `./squid-logs`). |
 
 ## Setup
 
@@ -74,7 +76,7 @@ podman-compose -p opencode --env-file env.opencode -f compose-opencode.yaml logs
 podman-compose -p opencode --env-file env.opencode -f compose-opencode.yaml ps
 
 # watch the proxy access log (every request, allowed and denied)
-podman-compose -p opencode --env-file env.opencode -f compose-opencode.yaml logs -f proxy
+tail -f "${SQUIDLOG_HOST:-./squid-logs}/access.log"
 
 # tear down (at least squid will survive even if stack was started with --rm)
 podman-compose -p opencode --env-file env.opencode -f compose-opencode.yaml down
@@ -96,7 +98,7 @@ The allowlist is the `allowed_domains` ACL in `squid-opencode.conf`. A leading d
 acl allowed_domains dstdomain .models.dev .opencode.ai .anthropic.com
 ```
 
-Common additions are your provider's API domain (e.g. `.anthropic.com`, `.openai.com`, `.openrouter.ai`). A good way to find what is missing is to run the proxy log in a second terminal (`logs -f proxy`) and look for `TCP_DENIED` lines. After editing the file, restart the proxy (`restart proxy`, or `down` and `up`).
+Common additions are your provider's API domain (e.g. `.anthropic.com`, `.openai.com`, `.openrouter.ai`). A good way to find what is missing is to tail the proxy access log (`tail -f "${SQUIDLOG_HOST:-./squid-logs}/access.log"`) and look for `TCP_DENIED` lines. After editing the file, restart the proxy (`restart proxy`, or `down` and `up`).
 
 - `.models.dev` — OpenCode fetches its model list from here; if blocked it falls back to a bundled snapshot.
 - `.opencode.ai` — OpenCode's own services (e.g. OpenCode Zen, auth, sharing).
@@ -106,7 +108,7 @@ Common additions are your provider's API domain (e.g. `.anthropic.com`, `.openai
 After starting the stack, confirm from inside the `opencode` container that:
 
 - Requests to an allowed domain (e.g. `curl -I https://models.dev`) succeed (through the proxy).
-- A request to any other domain (e.g. `curl -I https://example.com`) fails — Squid's `http_access deny all` should reject it, and a `TCP_DENIED` line shows up in the proxy log.
+- A request to any other domain (e.g. `curl -I https://example.com`) fails — Squid's `http_access deny all` should reject it, and a `TCP_DENIED` line shows up in `${SQUIDLOG:-/squidlog}/access.log`.
 
 `curl` is not part of the Alpine base image; add it to the `apk add` line in `Dockerfile.opencode` if you want to run these checks.
 
@@ -118,7 +120,8 @@ After starting the stack, confirm from inside the `opencode` container that:
 | `Dockerfile.opencode`    | Builds the sandbox image OpenCode runs in                                                              |
 | `Dockerfile.proxy`       | Builds the Squid proxy image                                                                           |
 | `entrypoint-opencode.sh` | Seeds `$HOME` from `/etc/skel` without clobbering existing files, then execs the container command     |
-| `squid-opencode.conf`    | Proxy allowlist — HTTPS CONNECT only, to the listed domains                                            |
+| `entrypoint-proxy.sh`    | Generates `squid.conf` from template (substituting `SQUIDLOG`), fixes log dir ownership, then runs Squid |
+| `squid-opencode.conf`    | Proxy allowlist template — HTTPS CONNECT only, to the listed domains                                |
 | `env.opencode`           | Sample for `env.opencode` defining container names, proxy port, host UID/GID, bind-mount paths         |
 
 ## Notes

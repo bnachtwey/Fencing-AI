@@ -35,8 +35,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.proxy
+    environment:
+      SQUIDLOG: ${SQUIDLOG}
     volumes:
-      - ./squid-opencode.conf:/etc/squid/squid.conf:ro,Z
+      - ./squid-opencode.conf:/etc/squid/squid.conf.template:ro,Z
+      - ${SQUIDLOG_HOST}:${SQUIDLOG}:Z
     # Only "opencode" shares the "isolated" network with this service, and
     # "isolated" has no route to the host or outside world, so ${PROXY_PORT}
     # is reachable solely from the opencode container by construction.
