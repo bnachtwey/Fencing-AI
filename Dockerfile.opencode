@@ -29,7 +29,7 @@ RUN set -eu; \
     chown "${HOST_UID}:${HOST_GID}" /work
 
 # Skeleton files copied into an empty $HOME at startup (see entrypoint)
-RUN mkdir -p -p /etc/skel/.config/opencode \
+RUN mkdir -p /etc/skel/.config/opencode \
  && printf 'export PATH="$HOME/.local/bin:$PATH"\nalias ll="ls -la"\n' > /etc/skel/.bashrc \
  && printf '[ -f ~/.bashrc ] && . ~/.bashrc\n' > /etc/skel/.bash_profile
 
