@@ -2,7 +2,7 @@
 
 Podman Compose sandboxes for coding and CLI agents. Each agent runs as a non-root user with a host-mounted project directory and a network path restricted through its own Squid proxy allowlist.
 
-The project currently supports **Claude Code**, **OpenCode**, and **Mammouth Code**. The three stacks share the same isolation pattern, but use separate compose projects, proxy containers, allowlists, home directories, and Squid logs.
+The project currently supports **Claude Code**, **OpenCode**, **Mammouth Code**, and **pi.dev**. The four stacks share the same isolation pattern, but use separate compose projects, proxy containers, allowlists, home directories, and Squid logs.
 
 ## Security model and limitations
 
@@ -22,6 +22,7 @@ Image builds are separate from runtime networking: package installation, fetchin
 | Claude Code | `compose-claude.yaml` / `env.claude` | `Dockerfile.claude` | `squid-claude.conf` | `./claude-home` | `./claude-squid-logs` |
 | OpenCode | `compose-opencode.yaml` / `env.opencode` | `Dockerfile.opencode` | `squid-opencode.conf` | `./opencode-home` | `./opencode-squid-logs` |
 | Mammouth Code | `compose-mammouth.yaml` / `env.mammouth` | `Dockerfile.mammouth` | `squid-mammouth.conf` | `./mammouth-home` | `./mammouth-squid-logs` |
+| pi.dev | `compose-pi.dev.yaml` / `env.pi.dev` | `Dockerfile.pi.dev` | `squid-pi.dev.conf` | `./pi.dev-home` | `./pi.dev-squid-logs` |
 
 Each env file sets its stack's container names, proxy port, UID/GID values, work/home/log bind mounts, and Squid's in-container log path. The defaults all mount `./work` at `/work`, so the agents share the same working tree. Set `WORK_DIR` separately in an env file if you want an agent to operate on a different checkout.
 
@@ -40,9 +41,12 @@ podman-compose -p opencode --env-file env.opencode -f compose-opencode.yaml run 
 
 # Mammouth Code
 podman-compose -p mammouth --env-file env.mammouth -f compose-mammouth.yaml run --build --rm mammouth
+
+# pi.dev
+podman-compose -p pi-dev --env-file env.pi.dev -f compose-pi.dev.yaml run --build --rm pi
 ```
 
-The shell aliases in `aliases` provide `run-claude`, `run-opencode`, and `run-mammouth` shortcuts. Source that file in your shell if you want to use them.
+The shell aliases in `aliases` provide `run-claude`, `run-opencode`, `run-mammouth`, and `run-pi` shortcuts. Source that file in your shell if you want to use them.
 
 The work directory and home directories are bind-mounted from the host. Set `WORK_DIR` and the relevant `*_HOME_DIR` in the selected env file before launching if the defaults are not suitable. Authenticate the agent inside its sandbox; its home mount preserves credentials and settings between runs.
 
@@ -76,6 +80,13 @@ podman-compose -p opencode --env-file env.opencode -f compose-opencode.yaml down
 - Authenticate Mammouth Code with a Mammouth API key inside the container; configuration and credentials persist in `./mammouth-home`.
 - Upgrade by changing `MAMMOUTH_VERSION` to a reviewed release and rebuilding the image.
 
+### pi.dev
+
+- Installs the official npm package `@earendil-works/pi-coding-agent` at the pinned `PI_VERSION` in `env.pi.dev`; the image uses Node.js 24 Alpine and disables npm lifecycle scripts during installation, following Pi's container guidance. It also installs Alpine's `fd` package alongside `ripgrep`, as Pi tooling and extensions may require both search utilities.
+- Pi stores its agent configuration, credentials, packages, and sessions under `~/.pi/agent`. This stack sets `PI_CODING_AGENT_DIR=/home/pi/.pi/agent` and persists the home at `./pi.dev-home`.
+- The proxy defaults to the narrow `pi.dev` hostname, needed for the documented version check and remote provider model-catalog refresh. `PI_TELEMETRY=0` disables Pi's telemetry; `PI_SKIP_VERSION_CHECK` is not set so the version check remains available. Provider API hosts are deliberately not pre-authorized: authenticate with `/login`, inspect `./pi.dev-squid-logs/access.log`, and add only the exact provider hosts needed to `squid-pi.dev.conf`.
+- Upgrade by changing `PI_VERSION` to a reviewed npm release and rebuilding the image. Pi package and extension installs performed at runtime also need npm/Git hosts allowed by the proxy, so permit these only if you intend to install packages from inside the sandbox.
+
 ## Proxy logs and allowlists
 
 Each stack writes Squid's `access.log` and `cache.log` to its own host-mounted log directory. Follow access requests (including denied requests) with:
@@ -84,9 +95,10 @@ Each stack writes Squid's `access.log` and `cache.log` to its own host-mounted l
 tail -f ./claude-squid-logs/access.log
 tail -f ./opencode-squid-logs/access.log
 tail -f ./mammouth-squid-logs/access.log
+tail -f ./pi.dev-squid-logs/access.log
 ```
 
-When a required request is blocked, find its `TCP_DENIED` line and add only the needed hostname to the corresponding `allowed_domains` ACL in `squid-claude.conf`, `squid-opencode.conf`, or `squid-mammouth.conf`. Then recreate/restart that stack's proxy so it loads the changed config. Avoid broad wildcard domains unless logs show they are necessary.
+When a required request is blocked, find its `TCP_DENIED` line and add only the needed hostname to the corresponding `allowed_domains` ACL in `squid-claude.conf`, `squid-opencode.conf`, `squid-mammouth.conf`, or `squid-pi.dev.conf`. Then recreate/restart that stack's proxy so it loads the changed config. Avoid broad wildcard domains unless logs show they are necessary.
 
 The configs allow HTTPS CONNECT on port 443 only. They do not inspect encrypted request paths or content; the allowlist is hostname-based.
 

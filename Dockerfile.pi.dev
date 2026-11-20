@@ -1,0 +1,43 @@
+# Pi coding agent sandbox
+FROM docker.io/library/node:24-alpine
+
+ARG HOST_UID=59999
+ARG HOST_GID=59999
+ARG PI_VERSION=1.6.0
+
+# Pi requires Node.js >=22.19. Install its published npm package without
+# running package lifecycle scripts, as recommended by Pi's container guide.
+# fetch-blob@3 depends on deprecated node-domexception, although Node 24 has the
+# native DOMException. Use the native implementation and remove the unused shim.
+RUN apk add --no-cache bash git ripgrep fd ca-certificates \
+ && npm_config_loglevel=error npm install -g --ignore-scripts "@earendil-works/pi-coding-agent@${PI_VERSION}" \
+ && fetch_blob="$(npm root -g)/@earendil-works/pi-coding-agent/node_modules/fetch-blob" \
+ && test -f "${fetch_blob}/from.js" \
+ && grep -q "^import DOMException from 'node-domexception'$" "${fetch_blob}/from.js" \
+ && grep -q "new DOMException(" "${fetch_blob}/from.js" \
+ && sed -i "/^import DOMException from 'node-domexception'$/d; s/new DOMException(/new globalThis.DOMException(/" "${fetch_blob}/from.js" \
+ && node -e 'const fs = require("node:fs"); const file = process.argv[1]; const pkg = JSON.parse(fs.readFileSync(file, "utf8")); delete pkg.dependencies?.["node-domexception"]; fs.writeFileSync(file, JSON.stringify(pkg, null, 2) + String.fromCharCode(10));' "${fetch_blob}/package.json" \
+ && rm -rf "$(npm root -g)/@earendil-works/pi-coding-agent/node_modules/node-domexception" \
+ && test ! -e "$(npm root -g)/@earendil-works/pi-coding-agent/node_modules/node-domexception" \
+ && pi --version
+
+# Match the host user so files written through bind mounts retain host ownership.
+RUN set -eu; \
+    grp="$(getent group "${HOST_GID}" | cut -d: -f1 || true)"; \
+    if [ -z "$grp" ]; then addgroup -g "${HOST_GID}" pi; grp=pi; fi; \
+    adduser -D -u "${HOST_UID}" -G "$grp" -s /bin/bash pi; \
+    mkdir -p /work; \
+    chown "${HOST_UID}:${HOST_GID}" /work
+
+RUN mkdir -p /etc/skel \
+ && printf 'alias ll="ls -la"\n' > /etc/skel/.bashrc \
+ && printf '[ -f ~/.bashrc ] && . ~/.bashrc\n' > /etc/skel/.bash_profile
+
+COPY entrypoint-pi.dev.sh /usr/local/bin/entrypoint.sh
+RUN chmod 755 /usr/local/bin/entrypoint.sh
+
+ENV HOME=/home/pi
+USER pi
+WORKDIR /work
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["pi"]

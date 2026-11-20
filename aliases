@@ -1,3 +1,4 @@
 alias run-claude='  podman-compose -p claude   --env-file env.claude   -f compose-claude.yaml   run --rm claude'
 alias run-opencode='podman-compose -p opencode --env-file env.opencode -f compose-opencode.yaml run --rm opencode'
 alias run-mammouth='podman-compose -p mammouth --env-file env.mammouth -f compose-mammouth.yaml run --build --rm mammouth'
+alias run-pi='podman-compose -p pi-dev --env-file env.pi.dev -f compose-pi.dev.yaml run --build --rm pi'

@@ -1,0 +1,58 @@
+x-podman:
+  in_pod: false
+
+services:
+  pi:
+    container_name: ${PI_CONTAINER_NAME}
+    build:
+      context: .
+      dockerfile: Dockerfile.pi.dev
+      args:
+        HOST_UID: ${HOST_UID}
+        HOST_GID: ${HOST_GID}
+        PI_VERSION: ${PI_VERSION}
+    userns_mode: "keep-id:uid=${HOST_UID},gid=${HOST_GID}"
+    environment:
+      HTTPS_PROXY: http://proxy:${PROXY_PORT}
+      HTTP_PROXY: http://proxy:${PROXY_PORT}
+      https_proxy: http://proxy:${PROXY_PORT}
+      http_proxy: http://proxy:${PROXY_PORT}
+      NO_PROXY: localhost,127.0.0.1,::1
+      PI_CODING_AGENT_DIR: /home/pi/.pi/agent
+      PI_TELEMETRY: "0"
+    volumes:
+      - ${WORK_DIR}:/work:Z
+      - ${PI_HOME_DIR}:/home/pi:Z
+    networks:
+      - isolated
+    depends_on:
+      - proxy
+    stdin_open: true
+    tty: true
+    command: ["pi"]
+
+  proxy:
+    container_name: ${PROXY_CONTAINER_NAME}
+    build:
+      context: .
+      dockerfile: Dockerfile.proxy
+      args:
+        SQUID_UID: ${SQUID_UID}
+        SQUID_GID: ${SQUID_GID}
+    userns_mode: "keep-id:uid=${SQUID_UID},gid=${SQUID_GID}"
+    user: "${SQUID_UID}:${SQUID_GID}"
+    environment:
+      SQUIDLOG: ${SQUIDLOG}
+    volumes:
+      - ./squid-pi.dev.conf:/etc/squid/squid.conf.template:ro,Z
+      - ${SQUIDLOG_DIR}:${SQUIDLOG}:Z
+    expose:
+      - "${PROXY_PORT}"
+    networks:
+      - isolated
+      - egress
+
+networks:
+  isolated:
+    internal: true
+  egress: {}
