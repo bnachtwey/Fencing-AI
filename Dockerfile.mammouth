@@ -1,0 +1,48 @@
+# Mammouth Code sandbox image
+FROM docker.io/library/alpine:3.20
+
+# Match the host user so bind mounts have sane ownership and the process has a
+# real passwd entry (git, ssh and some Node tools complain otherwise).
+ARG HOST_UID=59999
+ARG HOST_GID=59999
+
+# Pin Mammouth Code to a reviewed release. The upstream publishes musl builds
+# for Alpine under mammouth-linux-{x64,arm64}-musl.tar.gz.
+ARG MAMMOUTH_VERSION=2.2.5
+ARG MAMMOUTH_ARCH=x64
+
+RUN apk add --no-cache bash git ripgrep libgcc libstdc++ curl ca-certificates \
+ && set -eu; \
+    archive="mammouth-linux-${MAMMOUTH_ARCH}-musl.tar.gz"; \
+    archive_dir="mammouth-linux-${MAMMOUTH_ARCH}-musl"; \
+    mkdir -p /tmp/mammouth; \
+    curl -fsSL "https://github.com/mammouth-ai/code/releases/download/v${MAMMOUTH_VERSION}/${archive}" \
+      | tar -xz -C /tmp/mammouth --strip-components=2 "${archive_dir}/bin/mammouth"; \
+    mv /tmp/mammouth/mammouth /usr/local/bin/mammouth; \
+    rm -rf /tmp/mammouth; \
+    chmod 755 /usr/local/bin/mammouth; \
+    mammouth --version
+
+# Create the non-root user with the host's uid/gid. If the gid already exists
+# in the image (e.g. 100 = "users"), reuse that group instead of failing.
+RUN set -eu; \
+    grp="$(getent group "${HOST_GID}" | cut -d: -f1 || true)"; \
+    if [ -z "$grp" ]; then addgroup -g "${HOST_GID}" mammouth; grp=mammouth; fi; \
+    adduser -D -u "${HOST_UID}" -G "$grp" -s /bin/bash mammouth; \
+    mkdir -p /work; \
+    chown "${HOST_UID}:${HOST_GID}" /work
+
+# Generic shell convenience files. Mammouth Code creates its own config and
+# state under $HOME when first run; do not seed OpenCode-specific settings.
+RUN mkdir -p /etc/skel \
+ && printf 'export PATH="$HOME/.mammouth/bin:$PATH"\nalias ll="ls -la"\n' > /etc/skel/.bashrc \
+ && printf '[ -f ~/.bashrc ] && . ~/.bashrc\n' > /etc/skel/.bash_profile
+
+COPY entrypoint-mammouth.sh /usr/local/bin/entrypoint.sh
+RUN chmod 755 /usr/local/bin/entrypoint.sh
+
+ENV HOME=/home/mammouth
+USER mammouth
+WORKDIR /work
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["mammouth"]

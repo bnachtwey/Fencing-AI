@@ -1,0 +1,61 @@
+x-podman:
+  in_pod: false
+
+services:
+  mammouth:
+    container_name: ${MAMMOUTH_CONTAINER_NAME}
+    build:
+      context: .
+      dockerfile: Dockerfile.mammouth
+      args:
+        HOST_UID: ${HOST_UID}
+        HOST_GID: ${HOST_GID}
+        MAMMOUTH_VERSION: ${MAMMOUTH_VERSION}
+        MAMMOUTH_ARCH: ${MAMMOUTH_ARCH}
+    userns_mode: "keep-id:uid=${HOST_UID},gid=${HOST_GID}"
+    environment:
+      HTTPS_PROXY: http://proxy:${PROXY_PORT}
+      HTTP_PROXY: http://proxy:${PROXY_PORT}
+      https_proxy: http://proxy:${PROXY_PORT}
+      http_proxy: http://proxy:${PROXY_PORT}
+      NO_PROXY: localhost,127.0.0.1,::1
+    volumes:
+      - ${WORK_DIR}:/work:Z
+      - ${MAMMOUTH_HOME_DIR}:/home/mammouth:Z
+    networks:
+      - isolated
+    depends_on:
+      - proxy
+    stdin_open: true
+    tty: true
+    command: ["mammouth"]
+
+  proxy:
+    container_name: ${PROXY_CONTAINER_NAME}
+    build:
+      context: .
+      dockerfile: Dockerfile.proxy
+      args:
+        SQUID_UID: ${SQUID_UID}
+        SQUID_GID: ${SQUID_GID}
+    # Map the host user onto the container's squid user, so files Squid
+    # writes to the bind-mounted log dir are owned by you on the host.
+    userns_mode: "keep-id:uid=${SQUID_UID},gid=${SQUID_GID}"
+    user: "${SQUID_UID}:${SQUID_GID}"
+    environment:
+      SQUIDLOG: ${SQUIDLOG}
+    volumes:
+      - ./squid-mammouth.conf:/etc/squid/squid.conf.template:ro,Z
+      - ${SQUIDLOG_DIR}:${SQUIDLOG}:Z
+    # Only Mammouth shares the internal network with Squid. The internal
+    # network has no route outside; the proxy is the only egress path.
+    expose:
+      - "${PROXY_PORT}"
+    networks:
+      - isolated
+      - egress
+
+networks:
+  isolated:
+    internal: true
+  egress: {}
