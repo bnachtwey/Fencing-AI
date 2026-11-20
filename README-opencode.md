@@ -34,7 +34,7 @@ Set in `compose-opencode.yaml`:
 | `OPENCODE_DISABLE_AUTOUPDATE=true`                          | No self-update attempts (they would be blocked anyway).                                         |
 | `OPENCODE_DISABLE_LSP_DOWNLOAD=true`                        | No automatic LSP server downloads (blocked anyway).                                             |
 | `SQUIDLOG`                                                  | Directory inside the proxy container where Squid writes `access.log` and `cache.log` (default `/squidlog`). |
-| `SQUIDLOG_HOST`                                             | Host directory bind-mounted onto `${SQUIDLOG}` so proxy logs are readable on the host (default `./squid-logs`). |
+| `SQUIDLOG_HOST`                                             | Host directory bind-mounted onto `${SQUIDLOG}` so proxy logs are readable on the host (default `./opencode-squid-logs`). |
 
 ## Setup
 
@@ -76,7 +76,7 @@ podman-compose -p opencode --env-file env.opencode -f compose-opencode.yaml logs
 podman-compose -p opencode --env-file env.opencode -f compose-opencode.yaml ps
 
 # watch the proxy access log (every request, allowed and denied)
-tail -f "${SQUIDLOG_HOST:-./squid-logs}/access.log"
+tail -f "${SQUIDLOG_HOST:-./opencode-squid-logs}/access.log"
 
 # tear down (at least squid will survive even if stack was started with --rm)
 podman-compose -p opencode --env-file env.opencode -f compose-opencode.yaml down
@@ -98,7 +98,7 @@ The allowlist is the `allowed_domains` ACL in `squid-opencode.conf`. A leading d
 acl allowed_domains dstdomain .models.dev .opencode.ai .anthropic.com
 ```
 
-Common additions are your provider's API domain (e.g. `.anthropic.com`, `.openai.com`, `.openrouter.ai`). A good way to find what is missing is to tail the proxy access log (`tail -f "${SQUIDLOG_HOST:-./squid-logs}/access.log"`) and look for `TCP_DENIED` lines. After editing the file, restart the proxy (`restart proxy`, or `down` and `up`).
+Common additions are your provider's API domain (e.g. `.anthropic.com`, `.openai.com`, `.openrouter.ai`). A good way to find what is missing is to tail the proxy access log (`tail -f "${SQUIDLOG_HOST:-./opencode-squid-logs}/access.log"`) and look for `TCP_DENIED` lines. After editing the file, restart the proxy (`restart proxy`, or `down` and `up`).
 
 - `.models.dev` — OpenCode fetches its model list from here; if blocked it falls back to a bundled snapshot.
 - `.opencode.ai` — OpenCode's own services (e.g. OpenCode Zen, auth, sharing).
