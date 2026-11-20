@@ -9,13 +9,15 @@ ARG HOST_GID=59999
 
 # Pin these for reproducible, reviewable builds.
 #   OPENCODE_CODE_VERSION: e.g. 2.0.0   (default "latest" = whatever npm serves)
-#   PONYTAIL_REF:        a commit SHA (default HEAD = current default branch)
 ARG OPENCODE_VERSION=latest
+# Change this value to force a re-install when OPENCODE_VERSION stays "latest".
+ARG OPENCODE_CACHEBUST=0
 
 # Basic packages. libgcc/libstdc++/ripgrep are needed by OPENCODE Code on musl
 # (compose sets USE_BUILTIN_RIPGREP=0 to use the system ripgrep).
-RUN apk add --no-cache nodejs npm git bash ripgrep libgcc libstdc++ curl \
- && npm install -g "opencode-ai@${OPENCODE_VERSION}" \
+RUN apk add --no-cache nodejs npm git bash ripgrep libgcc libstdc++ curl
+RUN echo "cachebust=${OPENCODE_CACHEBUST}" \
+ && npm install -g "@opencode/cli@${OPENCODE_VERSION}" \
  && npm cache clean --force \
  && opencode --version
 
@@ -30,6 +32,7 @@ RUN set -eu; \
 
 # Skeleton files copied into an empty $HOME at startup (see entrypoint)
 RUN mkdir -p /etc/skel/.config/opencode \
+ && printf '{ "autoupdate": false }\n' > /etc/skel/.config/opencode/opencode.json \
  && printf 'export PATH="$HOME/.local/bin:$PATH"\nalias ll="ls -la"\n' > /etc/skel/.bashrc \
  && printf '[ -f ~/.bashrc ] && . ~/.bashrc\n' > /etc/skel/.bash_profile
 
