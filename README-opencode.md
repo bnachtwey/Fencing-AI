@@ -38,7 +38,7 @@ Set in `compose-opencode.yaml`:
 
 ## Setup
 
-Adapt your settings in env file `env-opencode`.
+Adapt your settings in env file `env.opencode`.
 
 Then add your LLM provider's domain to `squid-opencode.conf` (see below). Without it, OpenCode starts but cannot reach any model.
 
