@@ -12,7 +12,7 @@ OpenCode can run arbitrary shell commands on your behalf. This setup fences its 
 Two services, two Podman networks, defined in `compose-opencode.yaml`:
 
 - **`opencode`** (`Dockerfile.opencode`) — Alpine with Node, npm, git, ripgrep, and `@opencode/cli` installed globally. Runs as a non-root `opencode` user (uid/gid from `HOST_UID`/`HOST_GID`, mapped via `userns_mode: keep-id`). Its entrypoint (`entrypoint-opencode.sh`) seeds `$HOME` from `/etc/skel` (a starter `.bashrc`, `.bash_profile`, and empty `.config/opencode` dir) without overwriting anything already there, then execs the real command (`opencode` by default).
-- **`proxy`** (`Dockerfile.proxy`) — Alpine with Squid, configured by `squid-opencode.conf` to allow CONNECT only to the allowed domains and deny everything else. Every request, allowed or denied, is logged to `${SQUIDLOG}/access.log` (errors/debug to `${SQUIDLOG}/cache.log`), bind-mounted to `${SQUIDLOG_HOST}` on the host.
+- **`proxy`** (`Dockerfile.proxy`) — Alpine with Squid, configured by `squid-opencode.conf` to allow CONNECT only to the allowed domains and deny everything else. Every request, allowed or denied, is logged to `${SQUIDLOG}/access.log` (errors/debug to `${SQUIDLOG}/cache.log`), bind-mounted to `${SQUIDLOG_DIR}` on the host (default `./opencode-squid-logs`).
 - **`isolated` network** — internal-only, no route to the host or the internet. Connects `opencode` and `proxy`. This is the only network the `opencode` container is on.
 - **`egress` network** — connects only `proxy` to the outside world. This is the sole path any traffic from `opencode` can take to leave the sandbox, and only through Squid's allowlist.
 - **Volumes**:
@@ -34,7 +34,7 @@ Set in `compose-opencode.yaml`:
 | `OPENCODE_DISABLE_AUTOUPDATE=true`                          | No self-update attempts (they would be blocked anyway).                                         |
 | `OPENCODE_DISABLE_LSP_DOWNLOAD=true`                        | No automatic LSP server downloads (blocked anyway).                                             |
 | `SQUIDLOG`                                                  | Directory inside the proxy container where Squid writes `access.log` and `cache.log` (default `/squidlog`). |
-| `SQUIDLOG_HOST`                                             | Host directory bind-mounted onto `${SQUIDLOG}` so proxy logs are readable on the host (default `./opencode-squid-logs`). |
+| `SQUIDLOG_DIR`                                               | Host directory bind-mounted onto `${SQUIDLOG}` so proxy logs are readable on the host (default `./opencode-squid-logs`). |
 
 ## Setup
 
@@ -76,7 +76,7 @@ podman-compose -p opencode --env-file env.opencode -f compose-opencode.yaml logs
 podman-compose -p opencode --env-file env.opencode -f compose-opencode.yaml ps
 
 # watch the proxy access log (every request, allowed and denied)
-tail -f "${SQUIDLOG_HOST:-./opencode-squid-logs}/access.log"
+tail -f "${SQUIDLOG_DIR:-./opencode-squid-logs}/access.log"
 
 # tear down (at least squid will survive even if stack was started with --rm)
 podman-compose -p opencode --env-file env.opencode -f compose-opencode.yaml down
@@ -98,7 +98,7 @@ The allowlist is the `allowed_domains` ACL in `squid-opencode.conf`. A leading d
 acl allowed_domains dstdomain .models.dev .opencode.ai .anthropic.com
 ```
 
-Common additions are your provider's API domain (e.g. `.anthropic.com`, `.openai.com`, `.openrouter.ai`). A good way to find what is missing is to tail the proxy access log (`tail -f "${SQUIDLOG_HOST:-./opencode-squid-logs}/access.log"`) and look for `TCP_DENIED` lines. After editing the file, restart the proxy (`restart proxy`, or `down` and `up`).
+Common additions are your provider's API domain (e.g. `.anthropic.com`, `.openai.com`, `.openrouter.ai`). A good way to find what is missing is to tail the proxy access log (`tail -f "${SQUIDLOG_DIR:-./opencode-squid-logs}/access.log"`) and look for `TCP_DENIED` lines. After editing the file, restart the proxy (`restart proxy`, or `down` and `up`).
 
 - `.models.dev` — OpenCode fetches its model list from here; if blocked it falls back to a bundled snapshot.
 - `.opencode.ai` — OpenCode's own services (e.g. OpenCode Zen, auth, sharing).

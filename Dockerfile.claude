@@ -1,12 +1,19 @@
 # Dockerfile.claude
 FROM docker.io/library/alpine:3.20
 
-# add some basic packages
+# Host UID/GID are passed from compose so bind-mounted files retain host ownership.
+ARG HOST_UID=59999
+ARG HOST_GID=59999
+
+# Add the CLI and basic tools, then create a non-root user matching the host ID.
 RUN apk add --no-cache nodejs npm git bash ripgrep libgcc libstdc++ \
  && npm install -g @anthropic-ai/claude-code \
- && adduser -D -u 59999 -s /bin/bash claude \
- && mkdir -p /work \
- && chown claude:claude /work
+ && set -eu; \
+    grp="$(getent group "${HOST_GID}" | cut -d: -f1 || true)"; \
+    if [ -z "$grp" ]; then addgroup -g "${HOST_GID}" claude; grp=claude; fi; \
+    adduser -D -u "${HOST_UID}" -G "$grp" -s /bin/bash claude; \
+    mkdir -p /work; \
+    chown "${HOST_UID}:${HOST_GID}" /work
 
 # add ponytail plugin
 RUN git clone --depth 1 https://github.com/DietrichGebert/ponytail /opt/ponytail \

@@ -7,10 +7,16 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.claude
+      args:
+        HOST_UID: ${HOST_UID}
+        HOST_GID: ${HOST_GID}
     userns_mode: "keep-id:uid=${HOST_UID},gid=${HOST_GID}"
     environment:
       HTTPS_PROXY: http://proxy:${PROXY_PORT}
       HTTP_PROXY: http://proxy:${PROXY_PORT}
+      https_proxy: http://proxy:${PROXY_PORT}
+      http_proxy: http://proxy:${PROXY_PORT}
+      NO_PROXY: localhost,127.0.0.1,::1
       USE_BUILTIN_RIPGREP: "0"
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
     volumes:
@@ -29,8 +35,17 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.proxy
+      args:
+        SQUID_UID: ${SQUID_UID}
+        SQUID_GID: ${SQUID_GID}
+    # Map the host user onto the container's squid user for host-readable logs.
+    userns_mode: "keep-id:uid=${SQUID_UID},gid=${SQUID_GID}"
+    user: "${SQUID_UID}:${SQUID_GID}"
+    environment:
+      SQUIDLOG: ${SQUIDLOG}
     volumes:
-      - ./squid-claude.conf:/etc/squid/squid.conf:ro,Z
+      - ./squid-claude.conf:/etc/squid/squid.conf.template:ro,Z
+      - ${SQUIDLOG_DIR}:${SQUIDLOG}:Z
     # Only "claude" shares the "isolated" network with this service, and
     # "isolated" has no route to the host or outside world, so ${PROXY_PORT}
     # is reachable solely from the claude container by construction.
